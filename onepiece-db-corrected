@@ -1,0 +1,215 @@
+DROP DATABASE IF EXISTS onepiece;
+CREATE DATABASE onepiece;
+USE onepiece;
+
+-- --------------- ETL-Tables (Temporary Tables) ----------------------
+CREATE TABLE arcs_etl(
+   id INT PRIMARY KEY AUTO_INCREMENT,
+   Arc VARCHAR(23) NOT NULL,
+   Starting_Chapter INT NOT NULL,
+   Total_Chapters INT NOT NULL,
+   Total_Pages INT NOT NULL
+);
+
+CREATE TABLE birth_year_etl(
+   Birth_Year INT NOT NULL,
+   Character_Name VARCHAR(22) NOT NULL
+);
+
+CREATE TABLE bounties_etl(
+   Character_Name VARCHAR(42) NOT NULL,
+   Bounty BIGINT NOT NULL,
+   Previous_Bounty BIGINT 
+);
+
+CREATE TABLE cross_guild_bounties_etl(
+   Character_Name VARCHAR(14) NOT NULL,
+   Occupation VARCHAR(15) NOT NULL,
+   Cross_Guild_Bounty BIGINT NOT NULL
+);
+
+CREATE TABLE chapters_etl(
+   Chapter_Number INT NOT NULL,
+   Title VARCHAR(91) NOT NULL,
+   Release_Date DATE NOT NULL,
+   Pages INT NOT NULL
+);
+
+CREATE TABLE characters_etl (
+   id INT PRIMARY KEY,
+   P VARCHAR(29),
+   name VARCHAR(30) NOT NULL,
+   Revealed VARCHAR(30) NOT NULL,
+   Year INT NOT NULL
+);
+
+CREATE TABLE devil_fruit_types_etl(
+   id INT PRIMARY KEY AUTO_INCREMENT,
+   Type VARCHAR(26) NOT NULL
+);
+
+CREATE TABLE devil_fruits_etl(
+   Character_Name VARCHAR(22) NOT NULL,
+   Devil_Fruit VARCHAR(50) NOT NULL,
+   Class VARCHAR(26) NOT NULL,
+   Status VARCHAR(5) NOT NULL,
+   Awakened VARCHAR(3) NOT NULL
+);
+
+CREATE TABLE factions_etl(
+   Character_name VARCHAR(29) NOT NULL PRIMARY KEY,
+   Faction VARCHAR(18),
+   Affiliation VARCHAR(36),
+   Occupation VARCHAR(58)
+);
+
+CREATE TABLE genders_etl(
+   Character_name VARCHAR(29) NOT NULL PRIMARY KEY,
+   Gender VARCHAR(12) NOT NULL
+);
+
+CREATE TABLE haki_etl(
+   Character_Name VARCHAR(22) NOT NULL,
+   Busoshoku_Haki_Armament VARCHAR(1),
+   Kenbunshoku_Haki_Observation VARCHAR(1),
+   Haoshoku_Haki_Conquerors VARCHAR(1)
+);
+
+CREATE TABLE hometowns_etl(
+   Character_Name VARCHAR(25) NOT NULL,
+   Region VARCHAR(10),
+   Island VARCHAR(21),
+   Town VARCHAR(31)
+);
+
+CREATE TABLE race_etl(
+   Character_Name VARCHAR(28) NOT NULL,
+   Race VARCHAR(30) NOT NULL
+);
+
+CREATE TABLE weapons_etl(
+   Character_Name VARCHAR(25) NOT NULL,
+   Weapon_Type VARCHAR(10) NOT NULL,
+   Main_Weapon VARCHAR(17) NOT NULL
+);
+
+CREATE TABLE zodiacs_etl(
+   Astrological_Sign VARCHAR(11) NOT NULL,
+   Character_Name VARCHAR(24) NOT NULL
+);
+
+-- ---------------------------- CREATING MAIN TABLES ---------------------------------
+DROP TABLE IF EXISTS Bounties;
+CREATE TABLE Bounties (
+   Character_Name VARCHAR(42) NOT NULL,
+   Bounty BIGINT NOT NULL,
+   Previous_Bounty BIGINT
+);
+
+INSERT INTO Bounties (Character_Name, Bounty, Previous_Bounty)
+SELECT Character_Name, Bounty, Previous_Bounty FROM bounties_etl 
+UNION ALL 
+SELECT Character_Name, Cross_Guild_Bounty, NULL FROM cross_guild_bounties_etl;
+
+CREATE TABLE Affiliations AS
+SELECT DISTINCT Affiliation FROM factions_etl;
+
+CREATE TABLE Factions AS
+SELECT DISTINCT Faction FROM factions_etl;
+
+CREATE TABLE Occupations AS
+SELECT DISTINCT Occupation FROM factions_etl;
+
+CREATE TABLE Races AS
+SELECT DISTINCT Race FROM race_etl;
+
+CREATE TABLE Zodiacs AS
+SELECT DISTINCT Astrological_Sign FROM zodiacs_etl;
+
+CREATE TABLE Weapons AS
+SELECT DISTINCT Main_Weapon FROM weapons_etl;
+
+CREATE TABLE Weapon_Types AS
+SELECT DISTINCT Weapon_Type FROM weapons_etl;
+
+CREATE TABLE Regions AS
+SELECT DISTINCT Region FROM hometowns_etl;
+
+CREATE TABLE Islands AS
+SELECT DISTINCT Island FROM hometowns_etl;
+
+CREATE TABLE Towns AS
+SELECT DISTINCT Town FROM hometowns_etl;
+
+-- Creating Main Haki Table    
+CREATE TABLE Haki AS
+SELECT Character_Name, Busoshoku_Haki_Armament, Kenbunshoku_Haki_Observation, Haoshoku_Haki_Conquerors FROM haki_etl;
+
+-- Creating Main Devil_Fruits Table    
+CREATE TABLE Devil_Fruits AS 
+SELECT Character_Name, Devil_Fruit, Class, Status, Awakened FROM devil_fruits_etl;
+
+CREATE TABLE Devil_Fruit_Types AS 
+SELECT * FROM devil_fruit_types_etl;
+
+-- Creating Characters_Info Table
+DROP TABLE IF EXISTS Characters_Info;
+CREATE TABLE Characters_Info AS
+SELECT c.id, c.Name, b.Birth_Year, g.Gender, bo.Bounty, bo.Previous_Bounty, c.Revealed, c.Year
+FROM characters_etl c
+LEFT JOIN birth_year_etl b ON c.Name = b.Character_Name
+LEFT JOIN genders_etl g ON c.Name = g.Character_name
+LEFT JOIN Bounties bo ON c.Name = bo.Character_Name;
+
+-- ----------------------- CREATING VIEWS ----------------------------
+DROP VIEW IF EXISTS Character_Bounties;
+CREATE VIEW Character_Bounties AS
+SELECT Name, Bounty, Previous_Bounty FROM Characters_Info;
+
+DROP VIEW IF EXISTS Character_DevilFruits;
+CREATE VIEW Character_DevilFruits AS
+SELECT c.Name, df.Devil_Fruit, dft.Type, df.Status, df.Awakened
+FROM Characters_Info c
+INNER JOIN Devil_Fruits df ON c.Name = df.Character_Name
+LEFT JOIN Devil_Fruit_Types dft ON df.Class = dft.Type;
+
+DROP VIEW IF EXISTS Character_Faction_Affiliation_Occupation;
+CREATE VIEW Character_Faction_Affiliation_Occupation AS
+SELECT c.Name, f.Faction, a.Affiliation, o.Occupation
+FROM Characters_Info c
+LEFT JOIN factions_etl f ON c.Name = f.Character_name
+LEFT JOIN Affiliations a ON f.Affiliation = a.Affiliation
+LEFT JOIN Occupations o ON f.Occupation = o.Occupation;
+
+DROP VIEW IF EXISTS Character_Haki;
+CREATE VIEW Character_Haki AS
+SELECT c.Name, h.* FROM Characters_Info c
+INNER JOIN Haki h ON c.Name = h.Character_Name;
+
+DROP VIEW IF EXISTS Character_Origin;
+CREATE VIEW Character_Origin AS
+SELECT c.Name, ho.Region, ho.Island, ho.Town
+FROM Characters_Info c
+INNER JOIN hometowns_etl ho ON c.Name = ho.Character_Name;
+
+DROP VIEW IF EXISTS Character_Race;
+CREATE VIEW Character_Race AS
+SELECT c.Name, r.Race FROM Characters_Info c
+INNER JOIN race_etl r ON c.Name = r.Character_Name;
+
+DROP VIEW IF EXISTS Character_Weapon;
+CREATE VIEW Character_Weapon AS
+SELECT c.Name, w.Weapon_Type, w.Main_Weapon
+FROM Characters_Info c
+INNER JOIN weapons_etl w ON c.Name = w.Character_Name;
+
+DROP VIEW IF EXISTS Character_Zodiac;
+CREATE VIEW Character_Zodiac AS
+SELECT c.Name, z.Astrological_Sign FROM Characters_Info c
+INNER JOIN zodiacs_etl z ON c.Name = z.Character_Name;
+
+-- ------------------------- CREATING INDEXES -----------------------------------
+CREATE INDEX idx_Name ON Characters_Info(Name);
+CREATE INDEX idx_Birth_Year ON Characters_Info(Birth_Year);
+CREATE INDEX idx_Bounty ON Characters_Info(Bounty);
+CREATE INDEX idx_Previous_Bounty ON Characters_Info(Previous_Bounty);
